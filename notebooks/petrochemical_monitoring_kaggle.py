@@ -37,22 +37,9 @@ print("=" * 70)
 print("石化工业智能监控系统 - 基于深度学习的异常检测")
 print("=" * 70)
 
-def get_device():
-    if torch.cuda.is_available():
-        try:
-            test_tensor = torch.zeros(1).cuda()
-            del test_tensor
-            torch.cuda.empty_cache()
-            return torch.device('cuda')
-        except Exception as e:
-            print(f"CUDA不可用，使用CPU: {e}")
-            return torch.device('cpu')
-    return torch.device('cpu')
-
-DEVICE = get_device()
+DEVICE = torch.device('cpu')
 print(f"\n使用设备: {DEVICE}")
-if DEVICE.type == 'cuda':
-    print(f"GPU型号: {torch.cuda.get_device_name(0)}")
+print("注意: 由于CUDA兼容性问题，使用CPU进行训练")
 
 CONFIG = {
     'input_dim': 52,
@@ -314,7 +301,16 @@ for name, model in models.items():
         
         predictions, labels = evaluate_model(trained_model, test_loader)
         
-        threshold = np.percentile(predictions[labels == 0], 95)
+        if len(predictions) == 0 or len(labels) == 0:
+            print(f"\n{name} 评估失败: 预测结果为空")
+            continue
+        
+        normal_mask = labels == 0
+        if np.sum(normal_mask) == 0:
+            threshold = np.percentile(predictions, 95)
+        else:
+            threshold = np.percentile(predictions[normal_mask], 95)
+        
         pred_labels = (predictions > threshold).astype(int)
         
         metrics = {
