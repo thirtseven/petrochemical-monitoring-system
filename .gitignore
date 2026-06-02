@@ -48,3 +48,13 @@ venv.bak/
 *.swo
 *~
 .DS_Store
+
+# Generated outputs
+kaggle_output/
+kaggle_output_real/
+paper1_cnn/
+paper2_autoencoder/
+redesigned_output/
+redesigned/
+*.docx
+*.doc

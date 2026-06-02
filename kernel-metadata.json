@@ -1,7 +1,7 @@
 {
-  "id": "thirtysevenhhhh/petrochemical-monitoring-system",
-  "title": "petrochemical-monitoring-system",
-  "code_file": "notebooks/petrochemical_monitoring_kaggle.py",
+  "id": "thirtysevenhhhh/petrochemical-real-training",
+  "title": "petrochemical-real-training",
+  "code_file": "kaggle_real_training.py",
   "language": "python",
   "kernel_type": "script",
   "is_private": false,
