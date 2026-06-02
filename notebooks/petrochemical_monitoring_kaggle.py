@@ -37,24 +37,36 @@ print("=" * 70)
 print("石化工业智能监控系统 - 基于深度学习的异常检测")
 print("=" * 70)
 
-DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+def get_device():
+    if torch.cuda.is_available():
+        try:
+            test_tensor = torch.zeros(1).cuda()
+            del test_tensor
+            torch.cuda.empty_cache()
+            return torch.device('cuda')
+        except Exception as e:
+            print(f"CUDA不可用，使用CPU: {e}")
+            return torch.device('cpu')
+    return torch.device('cpu')
+
+DEVICE = get_device()
 print(f"\n使用设备: {DEVICE}")
-if torch.cuda.is_available():
+if DEVICE.type == 'cuda':
     print(f"GPU型号: {torch.cuda.get_device_name(0)}")
 
 CONFIG = {
     'input_dim': 52,
-    'hidden_dim': 128,
+    'hidden_dim': 64,
     'num_layers': 2,
     'dropout': 0.2,
-    'd_model': 64,
+    'd_model': 32,
     'nhead': 4,
-    'encoding_dim': 32,
+    'encoding_dim': 16,
     'seq_length': 50,
-    'batch_size': 64,
-    'epochs': 50,
+    'batch_size': 32,
+    'epochs': 30,
     'learning_rate': 0.001,
-    'patience': 10
+    'patience': 8
 }
 
 class LSTMDetector(nn.Module):
@@ -294,226 +306,236 @@ results = {}
 histories = {}
 
 for name, model in models.items():
-    trained_model, train_losses, val_losses = train_model(
-        model, train_loader, val_loader, name, epochs=CONFIG['epochs']
-    )
-    histories[name] = {'train': train_losses, 'val': val_losses}
-    
-    predictions, labels = evaluate_model(trained_model, test_loader)
-    
-    threshold = np.percentile(predictions[labels == 0], 95)
-    pred_labels = (predictions > threshold).astype(int)
-    
-    metrics = {
-        'accuracy': accuracy_score(labels, pred_labels),
-        'precision': precision_score(labels, pred_labels, zero_division=0),
-        'recall': recall_score(labels, pred_labels, zero_division=0),
-        'f1': f1_score(labels, pred_labels, zero_division=0),
-        'auc_roc': roc_auc_score(labels, predictions)
-    }
-    
-    results[name] = {
-        'metrics': metrics,
-        'predictions': predictions,
-        'labels': labels,
-        'threshold': threshold,
-        'pred_labels': pred_labels
-    }
-    
-    print(f"\n{name} 评估结果:")
-    for metric, value in metrics.items():
-        print(f"  {metric}: {value:.4f}")
+    try:
+        trained_model, train_losses, val_losses = train_model(
+            model, train_loader, val_loader, name, epochs=CONFIG['epochs']
+        )
+        histories[name] = {'train': train_losses, 'val': val_losses}
+        
+        predictions, labels = evaluate_model(trained_model, test_loader)
+        
+        threshold = np.percentile(predictions[labels == 0], 95)
+        pred_labels = (predictions > threshold).astype(int)
+        
+        metrics = {
+            'accuracy': accuracy_score(labels, pred_labels),
+            'precision': precision_score(labels, pred_labels, zero_division=0),
+            'recall': recall_score(labels, pred_labels, zero_division=0),
+            'f1': f1_score(labels, pred_labels, zero_division=0),
+            'auc_roc': roc_auc_score(labels, predictions)
+        }
+        
+        results[name] = {
+            'metrics': metrics,
+            'predictions': predictions,
+            'labels': labels,
+            'threshold': threshold,
+            'pred_labels': pred_labels
+        }
+        
+        print(f"\n{name} 评估结果:")
+        for metric, value in metrics.items():
+            print(f"  {metric}: {value:.4f}")
+    except Exception as e:
+        print(f"\n{name} 训练失败: {e}")
+        print(f"跳过 {name} 模型...")
 
 print("\n" + "="*70)
 print("第三步: 生成论文图表")
 print("="*70)
 
-plt.rcParams['font.size'] = 12
-plt.rcParams['axes.titlesize'] = 14
-plt.rcParams['axes.labelsize'] = 12
+if not results:
+    print("没有成功的模型结果，跳过图表生成...")
+else:
+    plt.rcParams['font.size'] = 12
+    plt.rcParams['axes.titlesize'] = 14
+    plt.rcParams['axes.labelsize'] = 12
 
-print("\n生成图表 1: 系统架构图...")
-fig, ax = plt.subplots(figsize=(14, 6))
+    print("\n生成图表 1: 系统架构图...")
+    fig, ax = plt.subplots(figsize=(14, 6))
 
-layers = [
-    ('传感器\n数据采集', 0.1, '#3498db'),
-    ('数据\n预处理', 0.3, '#2ecc71'),
-    ('深度学习\n模型', 0.5, '#e74c3c'),
-    ('异常\n检测', 0.7, '#f39c12'),
-    ('可视化\n报警', 0.9, '#9b59b6')
-]
+    layers = [
+        ('传感器\n数据采集', 0.1, '#3498db'),
+        ('数据\n预处理', 0.3, '#2ecc71'),
+        ('深度学习\n模型', 0.5, '#e74c3c'),
+        ('异常\n检测', 0.7, '#f39c12'),
+        ('可视化\n报警', 0.9, '#9b59b6')
+    ]
 
-for name, pos, color in layers:
-    rect = plt.Rectangle((pos-0.08, 0.2), 0.16, 0.6, 
-                         facecolor=color, alpha=0.7, edgecolor='black', linewidth=2)
-    ax.add_patch(rect)
-    ax.text(pos, 0.5, name, ha='center', va='center', fontsize=11, fontweight='bold')
-    if pos < 0.9:
-        ax.annotate('', xy=(pos+0.16, 0.5), xytext=(pos+0.08, 0.5),
-                   arrowprops=dict(arrowstyle='->', lw=2, color='black'))
+    for name, pos, color in layers:
+        rect = plt.Rectangle((pos-0.08, 0.2), 0.16, 0.6, 
+                             facecolor=color, alpha=0.7, edgecolor='black', linewidth=2)
+        ax.add_patch(rect)
+        ax.text(pos, 0.5, name, ha='center', va='center', fontsize=11, fontweight='bold')
+        if pos < 0.9:
+            ax.annotate('', xy=(pos+0.16, 0.5), xytext=(pos+0.08, 0.5),
+                       arrowprops=dict(arrowstyle='->', lw=2, color='black'))
 
-ax.set_xlim(0, 1)
-ax.set_ylim(0, 1)
-ax.axis('off')
-ax.set_title('石化工业智能监控系统架构', fontsize=16, fontweight='bold', pad=20)
-plt.tight_layout()
-plt.savefig('system_architecture.png', dpi=300, bbox_inches='tight')
-plt.show()
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.axis('off')
+    ax.set_title('石化工业智能监控系统架构', fontsize=16, fontweight='bold', pad=20)
+    plt.tight_layout()
+    plt.savefig('system_architecture.png', dpi=300, bbox_inches='tight')
+    plt.show()
 
-print("生成图表 2: 训练曲线...")
-fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    print("生成图表 2: 训练曲线...")
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
-for name, history in histories.items():
-    axes[0].plot(history['train'], label=f'{name} 训练', linewidth=2)
-    axes[1].plot(history['val'], label=f'{name} 验证', linewidth=2)
+    for name, history in histories.items():
+        axes[0].plot(history['train'], label=f'{name} 训练', linewidth=2)
+        axes[1].plot(history['val'], label=f'{name} 验证', linewidth=2)
 
-axes[0].set_xlabel('Epoch')
-axes[0].set_ylabel('Loss')
-axes[0].set_title('训练损失')
-axes[0].legend()
-axes[0].grid(True, alpha=0.3)
+    axes[0].set_xlabel('Epoch')
+    axes[0].set_ylabel('Loss')
+    axes[0].set_title('训练损失')
+    axes[0].legend()
+    axes[0].grid(True, alpha=0.3)
 
-axes[1].set_xlabel('Epoch')
-axes[1].set_ylabel('Loss')
-axes[1].set_title('验证损失')
-axes[1].legend()
-axes[1].grid(True, alpha=0.3)
+    axes[1].set_xlabel('Epoch')
+    axes[1].set_ylabel('Loss')
+    axes[1].set_title('验证损失')
+    axes[1].legend()
+    axes[1].grid(True, alpha=0.3)
 
-plt.suptitle('模型训练过程', fontsize=16, fontweight='bold')
-plt.tight_layout()
-plt.savefig('training_curves.png', dpi=300, bbox_inches='tight')
-plt.show()
+    plt.suptitle('模型训练过程', fontsize=16, fontweight='bold')
+    plt.tight_layout()
+    plt.savefig('training_curves.png', dpi=300, bbox_inches='tight')
+    plt.show()
 
-print("生成图表 3: 模型性能对比...")
-fig, ax = plt.subplots(figsize=(10, 6))
+    print("生成图表 3: 模型性能对比...")
+    fig, ax = plt.subplots(figsize=(10, 6))
 
-model_names = list(results.keys())
-metrics_names = ['accuracy', 'precision', 'recall', 'f1', 'auc_roc']
-x = np.arange(len(model_names))
-width = 0.15
-multiplier = 0
+    model_names = list(results.keys())
+    metrics_names = ['accuracy', 'precision', 'recall', 'f1', 'auc_roc']
+    x = np.arange(len(model_names))
+    width = 0.15
+    multiplier = 0
 
-for metric in metrics_names:
-    values = [results[name]['metrics'][metric] for name in model_names]
-    offset = width * multiplier
-    rects = ax.bar(x + offset, values, width, label=metric.capitalize())
-    multiplier += 1
+    for metric in metrics_names:
+        values = [results[name]['metrics'][metric] for name in model_names]
+        offset = width * multiplier
+        rects = ax.bar(x + offset, values, width, label=metric.capitalize())
+        multiplier += 1
 
-ax.set_xlabel('模型')
-ax.set_ylabel('分数')
-ax.set_title('模型性能对比')
-ax.set_xticks(x + width * 2)
-ax.set_xticklabels(model_names)
-ax.legend(loc='lower right')
-ax.set_ylim(0.7, 1.05)
-ax.grid(True, alpha=0.3, axis='y')
+    ax.set_xlabel('模型')
+    ax.set_ylabel('分数')
+    ax.set_title('模型性能对比')
+    ax.set_xticks(x + width * 2)
+    ax.set_xticklabels(model_names)
+    ax.legend(loc='lower right')
+    ax.set_ylim(0.7, 1.05)
+    ax.grid(True, alpha=0.3, axis='y')
 
-plt.tight_layout()
-plt.savefig('model_comparison.png', dpi=300, bbox_inches='tight')
-plt.show()
+    plt.tight_layout()
+    plt.savefig('model_comparison.png', dpi=300, bbox_inches='tight')
+    plt.show()
 
-print("生成图表 4: ROC曲线...")
-fig, ax = plt.subplots(figsize=(8, 8))
+    print("生成图表 4: ROC曲线...")
+    fig, ax = plt.subplots(figsize=(8, 8))
 
-for name, result in results.items():
-    fpr, tpr, _ = roc_curve(result['labels'], result['predictions'])
-    roc_auc = result['metrics']['auc_roc']
-    ax.plot(fpr, tpr, linewidth=2, label=f'{name} (AUC = {roc_auc:.3f})')
+    for name, result in results.items():
+        fpr, tpr, _ = roc_curve(result['labels'], result['predictions'])
+        roc_auc = result['metrics']['auc_roc']
+        ax.plot(fpr, tpr, linewidth=2, label=f'{name} (AUC = {roc_auc:.3f})')
 
-ax.plot([0, 1], [0, 1], color='gray', linestyle='--', linewidth=1, label='随机分类')
-ax.set_xlim([0.0, 1.0])
-ax.set_ylim([0.0, 1.05])
-ax.set_xlabel('假正率 (FPR)')
-ax.set_ylabel('真正率 (TPR)')
-ax.set_title('ROC曲线 - 模型对比')
-ax.legend(loc='lower right')
-ax.grid(True, alpha=0.3)
-
-plt.tight_layout()
-plt.savefig('roc_curves.png', dpi=300, bbox_inches='tight')
-plt.show()
-
-print("生成图表 5: 混淆矩阵...")
-fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-
-for idx, (name, result) in enumerate(results.items()):
-    cm = confusion_matrix(result['labels'], result['pred_labels'])
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=axes[idx],
-               xticklabels=['正常', '异常'], yticklabels=['正常', '异常'])
-    axes[idx].set_xlabel('预测值')
-    axes[idx].set_ylabel('真实值')
-    axes[idx].set_title(f'{name} 混淆矩阵')
-
-plt.suptitle('混淆矩阵对比', fontsize=16, fontweight='bold')
-plt.tight_layout()
-plt.savefig('confusion_matrix.png', dpi=300, bbox_inches='tight')
-plt.show()
-
-print("生成图表 6: 异常检测结果可视化...")
-fig, axes = plt.subplots(2, 1, figsize=(14, 8), sharex=True)
-
-best_model = 'LSTM'
-result = results[best_model]
-n_show = 300
-
-time_steps = np.arange(n_show)
-axes[0].plot(time_steps, result['labels'][:n_show], 'b-', linewidth=1.5, label='真实标签', alpha=0.8)
-axes[0].set_ylabel('标签')
-axes[0].set_title('真实异常标签')
-axes[0].legend()
-axes[0].grid(True, alpha=0.3)
-
-axes[1].plot(time_steps, result['predictions'][:n_show], 'g-', linewidth=1, label='异常分数', alpha=0.8)
-axes[1].axhline(y=result['threshold'], color='r', linestyle='--', linewidth=2, 
-               label=f'阈值 ({result["threshold"]:.3f})')
-anomaly_mask = result['predictions'][:n_show] > result['threshold']
-axes[1].fill_between(time_steps, 0, result['predictions'][:n_show], 
-                    where=anomaly_mask, color='red', alpha=0.3, label='检测到的异常')
-axes[1].set_xlabel('时间步')
-axes[1].set_ylabel('异常分数')
-axes[1].set_title(f'{best_model} 异常检测结果')
-axes[1].legend()
-axes[1].grid(True, alpha=0.3)
-
-plt.suptitle('异常检测结果可视化', fontsize=16, fontweight='bold')
-plt.tight_layout()
-plt.savefig('anomaly_detection.png', dpi=300, bbox_inches='tight')
-plt.show()
-
-print("生成图表 7: 特征分布...")
-fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-feature_indices = [0, 1, 10, 20]
-feature_names = ['温度传感器', '压力传感器', '流量传感器', '成分传感器']
-
-X_normal = X[y == 0]
-X_anomaly = X[y == 1]
-
-for idx, (ax, feat_idx, feat_name) in enumerate(zip(axes.flat, feature_indices, feature_names)):
-    ax.hist(X_normal[:, feat_idx], bins=30, alpha=0.7, label='正常', color='#2ecc71', density=True)
-    ax.hist(X_anomaly[:, feat_idx], bins=30, alpha=0.7, label='异常', color='#e74c3c', density=True)
-    ax.set_xlabel(feat_name)
-    ax.set_ylabel('密度')
-    ax.set_title(f'{feat_name}分布')
-    ax.legend()
+    ax.plot([0, 1], [0, 1], color='gray', linestyle='--', linewidth=1, label='随机分类')
+    ax.set_xlim([0.0, 1.0])
+    ax.set_ylim([0.0, 1.05])
+    ax.set_xlabel('假正率 (FPR)')
+    ax.set_ylabel('真正率 (TPR)')
+    ax.set_title('ROC曲线 - 模型对比')
+    ax.legend(loc='lower right')
     ax.grid(True, alpha=0.3)
 
-plt.suptitle('特征分布: 正常 vs 异常', fontsize=16, fontweight='bold')
-plt.tight_layout()
-plt.savefig('feature_distribution.png', dpi=300, bbox_inches='tight')
-plt.show()
+    plt.tight_layout()
+    plt.savefig('roc_curves.png', dpi=300, bbox_inches='tight')
+    plt.show()
+
+    print("生成图表 5: 混淆矩阵...")
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+    for idx, (name, result) in enumerate(results.items()):
+        cm = confusion_matrix(result['labels'], result['pred_labels'])
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=axes[idx],
+                   xticklabels=['正常', '异常'], yticklabels=['正常', '异常'])
+        axes[idx].set_xlabel('预测值')
+        axes[idx].set_ylabel('真实值')
+        axes[idx].set_title(f'{name} 混淆矩阵')
+
+    plt.suptitle('混淆矩阵对比', fontsize=16, fontweight='bold')
+    plt.tight_layout()
+    plt.savefig('confusion_matrix.png', dpi=300, bbox_inches='tight')
+    plt.show()
+
+    print("生成图表 6: 异常检测结果可视化...")
+    fig, axes = plt.subplots(2, 1, figsize=(14, 8), sharex=True)
+
+    best_model = list(results.keys())[0]
+    result = results[best_model]
+    n_show = 300
+
+    time_steps = np.arange(n_show)
+    axes[0].plot(time_steps, result['labels'][:n_show], 'b-', linewidth=1.5, label='真实标签', alpha=0.8)
+    axes[0].set_ylabel('标签')
+    axes[0].set_title('真实异常标签')
+    axes[0].legend()
+    axes[0].grid(True, alpha=0.3)
+
+    axes[1].plot(time_steps, result['predictions'][:n_show], 'g-', linewidth=1, label='异常分数', alpha=0.8)
+    axes[1].axhline(y=result['threshold'], color='r', linestyle='--', linewidth=2, 
+                   label=f'阈值 ({result["threshold"]:.3f})')
+    anomaly_mask = result['predictions'][:n_show] > result['threshold']
+    axes[1].fill_between(time_steps, 0, result['predictions'][:n_show], 
+                        where=anomaly_mask, color='red', alpha=0.3, label='检测到的异常')
+    axes[1].set_xlabel('时间步')
+    axes[1].set_ylabel('异常分数')
+    axes[1].set_title(f'{best_model} 异常检测结果')
+    axes[1].legend()
+    axes[1].grid(True, alpha=0.3)
+
+    plt.suptitle('异常检测结果可视化', fontsize=16, fontweight='bold')
+    plt.tight_layout()
+    plt.savefig('anomaly_detection.png', dpi=300, bbox_inches='tight')
+    plt.show()
+
+    print("生成图表 7: 特征分布...")
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    feature_indices = [0, 1, 10, 20]
+    feature_names = ['温度传感器', '压力传感器', '流量传感器', '成分传感器']
+
+    X_normal = X[y == 0]
+    X_anomaly = X[y == 1]
+
+    for idx, (ax, feat_idx, feat_name) in enumerate(zip(axes.flat, feature_indices, feature_names)):
+        ax.hist(X_normal[:, feat_idx], bins=30, alpha=0.7, label='正常', color='#2ecc71', density=True)
+        ax.hist(X_anomaly[:, feat_idx], bins=30, alpha=0.7, label='异常', color='#e74c3c', density=True)
+        ax.set_xlabel(feat_name)
+        ax.set_ylabel('密度')
+        ax.set_title(f'{feat_name}分布')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+
+    plt.suptitle('特征分布: 正常 vs 异常', fontsize=16, fontweight='bold')
+    plt.tight_layout()
+    plt.savefig('feature_distribution.png', dpi=300, bbox_inches='tight')
+    plt.show()
 
 print("\n" + "="*70)
 print("第四步: 生成结果汇总")
 print("="*70)
 
-print("\n模型性能汇总:")
-print("-" * 60)
-print(f"{'模型':<15} {'准确率':<10} {'精确率':<10} {'召回率':<10} {'F1分数':<10} {'AUC-ROC':<10}")
-print("-" * 60)
-for name, result in results.items():
-    m = result['metrics']
-    print(f"{name:<15} {m['accuracy']:<10.4f} {m['precision']:<10.4f} {m['recall']:<10.4f} {m['f1']:<10.4f} {m['auc_roc']:<10.4f}")
-print("-" * 60)
+if results:
+    print("\n模型性能汇总:")
+    print("-" * 60)
+    print(f"{'模型':<15} {'准确率':<10} {'精确率':<10} {'召回率':<10} {'F1分数':<10} {'AUC-ROC':<10}")
+    print("-" * 60)
+    for name, result in results.items():
+        m = result['metrics']
+        print(f"{name:<15} {m['accuracy']:<10.4f} {m['precision']:<10.4f} {m['recall']:<10.4f} {m['f1']:<10.4f} {m['auc_roc']:<10.4f}")
+    print("-" * 60)
+else:
+    print("\n没有成功的模型结果")
 
 print("\n生成的图表文件:")
 print("  1. system_architecture.png - 系统架构图")
