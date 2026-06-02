@@ -1,0 +1,48 @@
+# Petrochemical Monitoring System Configuration
+
+# Data configuration
+data:
+  dataset_name: "tennessee_eastman"  # Options: tennessee_eastman, custom
+  raw_path: "data/raw/"
+  processed_path: "data/processed/"
+  train_ratio: 0.7
+  val_ratio: 0.15
+  test_ratio: 0.15
+  sequence_length: 50  # For time series models
+  batch_size: 64
+  
+# Model configuration
+model:
+  type: "lstm"  # Options: lstm, transformer, autoencoder, ensemble
+  input_dim: 52  # 41 measured + 11 manipulated variables
+  hidden_dim: 128
+  num_layers: 2
+  dropout: 0.2
+  output_dim: 1  # Anomaly score
+  
+# Training configuration
+training:
+  epochs: 100
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  patience: 10  # Early stopping patience
+  device: "auto"  # auto, cuda, cpu
+  
+# Anomaly detection configuration
+anomaly:
+  threshold_percentile: 95  # Percentile for anomaly threshold
+  window_size: 10  # Sliding window for smoothing
+  min_anomaly_duration: 5  # Minimum consecutive anomalies
+  
+# Visualization configuration
+visualization:
+  save_figures: true
+  figure_format: "png"
+  dpi: 300
+  style: "seaborn-v0_8-whitegrid"
+  
+# Output paths
+output:
+  figures_path: "results/figures/"
+  models_path: "results/models/"
+  logs_path: "results/logs/"
