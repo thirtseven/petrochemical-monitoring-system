@@ -1,0 +1,13 @@
+{
+  "id": "thirtysevenhhhh/petrochemical-ganomaly",
+  "title": "petrochemical-ganomaly",
+  "code_file": "kaggle_gan_training.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": false,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": []
+}
